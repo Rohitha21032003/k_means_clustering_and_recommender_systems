@@ -9,6 +9,22 @@ This repository contains implementations for two major data mining tasks:
 Both implementations are designed to answer specific questions outlined in the homework assignment regarding algorithmic analysis, performance comparison, and optimal parameter selection.
 
 ---
+## Repository Structure
+```
+.
+├── README.md
+├── kmeans_experiment.ipynb          # Task 1: K-Means implementation
+├── Recommender_Experiments.ipynb    # Task 2: Recommender systems
+├── data.csv                         # K-Means features (10,000 × 784)
+├── label.csv                        # K-Means true labels
+├── ratings_small.csv                # MovieLens ratings dataset
+├── kmeans_results_summary.csv       # Output: K-Means metrics
+├── results_similarity_table.csv     # Output: Similarity comparison
+├── results_k_table.csv              # Output: K values experiment
+├── rmse_by_similarity.png           # Plot: Similarity impact
+└── rmse_vs_k.png                    # Plot: Neighbor count impact
+```
+---
 
 ## Task 1: K-Means Clustering Analysis
 ### Implementation Details
@@ -64,9 +80,13 @@ The K-Means algorithm is implemented from scratch with three distance metrics:
 ### Answering Homework Questions
 
 **Q1: SSE Comparison**
-- The code runs K-Means with all three metrics
-- Results saved in `kmeans_results_summary.csv`
-- Typically: **Euclidean < Cosine < Jaccard** (lower SSE = better clustering)
+- Results: **Euclidean: 25,414,767,689.96 | Cosine: 686.23 | Jaccard: 4,239.95**
+- **IMPORTANT**: SSE values cannot be directly compared across different distance metrics
+- Each metric operates on a different numerical scale:
+  - Euclidean produces large values in high-dimensional spaces
+  - Cosine outputs bounded values in [0,2]
+  - Jaccard also produces smaller bounded values
+- The magnitude of SSE does NOT indicate which metric is "better"
 
 **Q2: Accuracy Comparison**
 - Majority voting labels each cluster
@@ -88,10 +108,11 @@ The K-Means algorithm is implemented from scratch with three distance metrics:
 
 **Q5: Observations**
 
-Based on typical results:
-- Euclidean: Fast convergence, moderate accuracy
-- Cosine: Better for high-dimensional data, good accuracy
-- Jaccard: Slower, lower accuracy, sensitive to sparse data
+Based on experimental results:
+- **Cosine: Best accuracy (0.6279)** - optimal for high-dimensional data
+- **Euclidean: Moderate accuracy (0.5851)** - fast, stable convergence (~33 iterations)
+- **Jaccard: Poor accuracy (0.4442)** - converges very quickly (2 iterations) but produces low-quality clusters
+- **Key Insight**: Jaccard terminates early due to SSE fluctuation, not because it clusters better
 
 ---
 
@@ -170,8 +191,9 @@ Results saved in `results_similarity_table.csv`
 - Three metrics tested for both user/item-based
 - Results plotted in `rmse_by_similarity.png`
 - **Key Finding**: Impact varies between user/item-based
-  - User-KNN: MSD usually best
-  - Item-KNN: Also MSD, but differences may vary
+  - **Both User-KNN and Item-KNN**: MSD performs best consistently
+  - For Item-KNN: MSD (0.9352) < Pearson (0.9900) < Cosine (0.9946)
+  - For User-KNN: MSD (0.9684) < Cosine (0.9934) < Pearson (0.9980)
 - Cosine sensitive to rating scale
 
 **Q2f: Number of Neighbors Impact**
@@ -289,26 +311,116 @@ for k in [5, 10, 20, 40, 80]:
 
 ### Task 1 Results
 
-**Typical Performance Ranking**:
-1. **SSE**: Euclidean < Cosine < Jaccard
-2. **Accuracy**: Cosine ≈ Euclidean > Jaccard
-3. **Convergence**: Euclidean (fastest) < Cosine < Jaccard (slowest)
+**Performance Summary**:
+
+| Metric | SSE | Accuracy | Iterations | Time |
+|--------|-----|----------|------------|------|
+| Euclidean | 25,414,767,689.96 | 0.5851 | 33 | 4.44s |
+| Cosine | 686.23 | 0.6279 | 29 | 4.99s |
+| Jaccard | 4,239.95 | 0.4442 | 2 | 2.12s |
+
+**Key Findings**:
+
+1. **SSE Values Cannot Be Directly Compared**:
+   - Euclidean produces very large SSE values due to L2 distance scale in high-dimensional space
+   - Cosine distance outputs values in [0,2], resulting in naturally smaller SSE
+   - Jaccard also produces bounded range values
+   - **Conclusion**: SSE magnitude does not indicate which metric is "better" - each minimizes its own objective on different scales
+
+2. **Accuracy Ranking**: **Cosine (0.6279) > Euclidean (0.5851) > Jaccard (0.4442)**
+   - **Cosine is the best performer** for this high-dimensional dataset
+   - Captures vector direction while ignoring magnitude - ideal for image/text-like features
+   - Euclidean assumes spherical clusters, which may not fit the true data structure
+   - Jaccard is inappropriate for continuous, dense feature vectors
+
+3. **Convergence Behavior**:
+   - **Euclidean & Cosine**: Stable convergence (~30 iterations, ~4-5 seconds)
+   - **Jaccard**: Terminates extremely early (2 iterations, 2.12s) due to rapid SSE fluctuation, not superior performance
+   - Cosine slightly slower per iteration due to vector normalization overhead
 
 **Insights**:
-- Euclidean: Best for continuous, low-dimensional data
-- Cosine: Better for high-dimensional, sparse data (like text)
-- Jaccard: Good for binary/set data, struggles with continuous values
+- **Best Overall Method**: Cosine similarity for high-dimensional continuous data
+- **Why Euclidean Underperforms**: Raw pixel space doesn't reflect true similarity structure
+- **Why Jaccard Fails**: Designed for binary/set data, struggles with continuous numeric features
+- **Theoretical Note**: Arithmetic mean centroids are mathematically optimal only for Euclidean distance; cosine/Jaccard would theoretically benefit from specialized centroid definitions or k-medoids
+
+---
 
 ### Task 2 Results
 
-**Typical Performance Ranking**:
-1. **RMSE**: Item-KNN < User-KNN < PMF
-2. **Best Similarity**: MSD performs best overall
-3. **Optimal K**: Item-based needs larger K (40-80), User-based smaller (10-20)
+**Model Performance Comparison (5-Fold Cross-Validation)**:
+
+| Model | RMSE | MAE |
+|-------|------|-----|
+| PMF (SVD) | 0.9852 | 0.7577 |
+| User-KNN (best) | 0.9684 | 0.7446 |
+| Item-KNN (best) | 0.9352 | 0.7214 |
+
+**Performance Ranking**: **Item-KNN < User-KNN < PMF** (lower is better)
+
+**Similarity Metric Comparison**:
+
+| Algorithm | Cosine | MSD | Pearson | Best |
+|-----------|--------|-----|---------|------|
+| User-KNN | 0.9934 | **0.9684** | 0.9980 | MSD |
+| Item-KNN | 0.9946 | **0.9352** | 0.9900 | MSD |
+
+- **MSD performs best** for both User-KNN and Item-KNN
+- **Impact is consistent** across both algorithms
+- Cosine and Pearson are competitive but slightly worse
+- For Item-KNN: MSD (0.9352) < Pearson (0.9900) < Cosine (0.9946)
+
+**Optimal Number of Neighbors (K)**:
+
+**User-KNN**:
+- Best K: **10-20** (k=10 gives RMSE=0.9634)
+- Performance degrades with very small (k=5) or very large (k=80) neighborhoods
+
+**Item-KNN**:
+- Best K: **80** (RMSE=0.9315)
+- Performance consistently improves as K increases
+- Benefits from larger neighborhoods
+
+| K | User-KNN (MSD) | Item-KNN (MSD) |
+|---|----------------|----------------|
+| 5 | 0.9853 | 1.0233 |
+| 10 | **0.9634** | 0.9736 |
+| 20 | 0.9628 | 0.9473 |
+| 40 | 0.9670 | 0.9360 |
+| 80 | 0.9747 | **0.9315** |
+
+**Key Findings**:
+
+1. **Best Overall Model**: **Item-Based Collaborative Filtering (MSD, k=80)**
+   - RMSE: 0.9315, MAE: 0.7214
+   - Outperforms both User-KNN and PMF
+
+2. **Why Item-KNN Performs Best**:
+   - Movies have more stable and consistent characteristic patterns
+   - User preferences are more variable and context-dependent
+   - Rating matrix structure: more ratings per user than users per item
+
+3. **Why MSD Works Best**:
+   - Scale-invariant: handles different rating scales naturally
+   - Less sensitive to outliers compared to Pearson
+   - Computationally simpler than cosine normalization
+
+4. **Neighborhood Size Behavior**:
+   - **User-KNN**: Prefers smaller neighborhoods (10-20)
+     - Too many neighbors introduce noise from dissimilar users
+   - **Item-KNN**: Benefits from larger neighborhoods (80+)
+     - More items → more stable similarity patterns
+     - Rating sparsity mitigated by broader item coverage
+
+5. **Best K is NOT the Same**:
+   - User-based: k ≈ 10-20
+   - Item-based: k ≈ 80
+   - Reflects fundamental differences in user vs. item similarity structure
 
 **Insights**:
-- Item-based CF leverages consistent item characteristics
-- MSD works well because it's scale-invariant
-- More neighbors help item-based due to rating sparsity
+- **For MovieLens data**: Item-based CF >> User-based CF > PMF
+- **Practical Recommendation**: Use Item-KNN with MSD similarity and k=80
+- **PMF (SVD) Limitations**: May need more tuning (factors, regularization) to compete with CF methods
+- **Similarity Metric Matters**: MSD's consistent superiority suggests rating scale normalization is critical
 
 ---
